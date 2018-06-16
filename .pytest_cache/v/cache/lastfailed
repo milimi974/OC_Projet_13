@@ -1,0 +1,5 @@
+{
+  "test/test_api.py::TestAPI::()::test_add_element": true,
+  "test/test_api.py::TestAPI::()::test_create_gui": true,
+  "test/test_api.py::TestAPI::()::test_create_image": true
+}
