@@ -65,5 +65,5 @@ class BugsApi:
 
     # this method download mesh from online ftp
     def DownloadMesh(self, filename, subpath=""):
-        urllib.urlretrieve(self.ftp_hostname + subpath, filename)
+        urllib.urlretrieve(self.ftp_host + subpath, filename)
 

@@ -1,5 +1,8 @@
 env
 .idea
 .pytest_cache
-./test/settings.py
+test/settings.py
 __pycache__
+test/__pycache__
+test_panel.py
+test/settings.pyc
