@@ -26,25 +26,39 @@ class TestAPI(object):
 
     # test connection ftp
     def test_connection_ftp(self):
-        ba = BugsApi(JSON_URL,FTP_HOSTNAME, FTP_LOGIN , FTP_PASSWORD)
+        ba = BugsApi(JSON_URL,FTP_HOSTNAME, FTP_LOGIN , FTP_PASSWORD, "mesh")
         session = ba.GetFtpSession()
         assert session.retrlines('LIST') == '226 Transfer complete'
 
     # test upload file to ftp
     def test_upload_file_ftp(self):
-        ba = BugsApi(JSON_URL, FTP_HOSTNAME, FTP_LOGIN, FTP_PASSWORD)
+        ba = BugsApi(JSON_URL, FTP_HOSTNAME, FTP_LOGIN, FTP_PASSWORD, "mesh")
         localpath = os.path.join(PLUGIN_PATH, "test/file/")
-        response = ba.SaveOnline("mesh1.blend",path=localpath, ftp_subpath="mesh")
+        response = ba.SaveOnline("mesh1.blend", direction=localpath)
         assert response == True
-        response = ba.SaveOnline("mesh2.blend", path=localpath, ftp_subpath="mesh")
+        response = ba.SaveOnline("mesh2.blend", direction=localpath)
         assert response == True
-        response = ba.SaveOnline("mesh3.blend", path=localpath, ftp_subpath="mesh")
+        response = ba.SaveOnline("mesh3.blend", direction=localpath)
         assert response == True
-        response = ba.SaveOnline("mesh4.blend", path=localpath, ftp_subpath="mesh")
+        response = ba.SaveOnline("mesh4.blend", direction=localpath)
+        assert response == True
+        response = ba.SaveOnline("bugs.obj", direction=localpath)
         assert response == True
 
     # test list file on ftp
     def test_list_file_ftp(self):
-        ba = BugsApi(JSON_URL, FTP_HOSTNAME, FTP_LOGIN, FTP_PASSWORD)
-        list = ba.GetFtpMeshList("mesh")
-        assert list == ["mesh1.blend","mesh2.blend","mesh3.blend","mesh4.blend"]
+        ba = BugsApi(JSON_URL, FTP_HOSTNAME, FTP_LOGIN, FTP_PASSWORD, "mesh")
+        list = ba.GetFtpMeshList()
+        assert list == ["bugs.obj","mesh1.blend","mesh2.blend","mesh3.blend","mesh4.blend"]
+
+    # test download mesh
+    def test_download_mesh(self):
+        ba = BugsApi(JSON_URL, FTP_HOSTNAME, FTP_LOGIN, FTP_PASSWORD, "mesh")
+        response = ba.DownloadMesh("mesh1.blend")
+        assert not response == False
+        response = ba.DownloadMesh("mesh2.blend")
+        assert not response == False
+        response = ba.DownloadMesh("mesh3.blend")
+        assert not response == False
+        response = ba.DownloadMesh("mesh4.blend")
+        assert not response == False

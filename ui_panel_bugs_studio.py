@@ -29,7 +29,7 @@ import os
 from ftplib import FTP
 import json
 from datetime import datetime
-
+import tempfile
 
 # ----------------------------------------------------
 # custom list manager
@@ -43,7 +43,7 @@ bpy.types.Scene.bugsMeshLists = bpy.props.CollectionProperty(type=BugsMeshGroup)
 
 
 class BugsCalendarGroup(bpy.types.PropertyGroup):
-    name = bpy.props.StringProperty()
+    day = bpy.props.StringProperty()
 
 
 bpy.utils.register_class(BugsCalendarGroup)
@@ -53,7 +53,6 @@ bpy.types.Scene.bugsCalendarLists = bpy.props.CollectionProperty(type=BugsCalend
 # Addon preferences
 # ----------------------------------------------------
 
-
 class Bugs_Pref(AddonPreferences):
     bl_idname = __name__
     # calendar json file url
@@ -61,24 +60,35 @@ class Bugs_Pref(AddonPreferences):
         name="JSON Uri",
         description="Add json file url",
         default="http://www.mywebsite.fr/json.php",
+        # default="http://wp.yoso.fr/json.php",
     )
     # ftp server host
     ftp_hostname = StringProperty(
         name="FTP Hostname",
         description="Add FTP hostname",
-        default="www.mywebsiteftp.fr",
+        # default="www.mywebsiteftp.fr",
+        default="ns532117.ip-198-245-49.net",
     )
     # ftp server login
     ftp_login = StringProperty(
         name="FTP Login",
         description="Add FTP user login",
-        default="My Login",
+        # default="My Login",
+        default="ftp_user.wp",
     )
     # ftp server password
     ftp_password = StringProperty(
         name="FTP Password",
         description="Add FTP user password",
-        default="**********",
+        # default="**********",
+        default="01#userftp#01",
+    )
+    # ftp server subpath
+    ftp_subpath = StringProperty(
+        name="FTP Sub-Folder",
+        description="Add FTP subfolder",
+        # default="",
+        default="mesh",
     )
     # ftp server port
     ftp_port = StringProperty(
@@ -102,6 +112,7 @@ class Bugs_Pref(AddonPreferences):
         col = row.column()
         col.prop(self, "ftp_hostname")
         col.prop(self, "ftp_port")
+        col.prop(self, "ftp_subpath")
         col.prop(self, "ftp_login")
         col.prop(self, "ftp_password")
 
@@ -112,9 +123,8 @@ class Bugs_Pref(AddonPreferences):
 
 
 class BugsApi:
-    """ this class manage api connexion """
 
-    def __init__(self, json_url, ftp_hostname="localhost", ftp_login=None, ftp_password=None, ftp_port=21):
+    def __init__(self, json_url, ftp_hostname="localhost", ftp_login=None, ftp_password=None, ftp_subpath="", ftp_port=21):
         """
         this are the constructor
         :param json_url: string
@@ -122,17 +132,19 @@ class BugsApi:
         :param ftp_login: string
         :param ftp_password: string
         :param ftp_port: int
+        :param ftp_port: int
         """
         self.json_url = json_url
         self.host = ftp_hostname
         self.port = ftp_port
         self.login = ftp_login
         self.password = ftp_password
+        self.ftp_subpath = ftp_subpath
 
     # this method return a ftp connexion
     def GetFtpSession(self):
         ftp = FTP()
-        ftp.connect(self.host, self.port)
+        ftp.connect(self.host, int(self.port))
         ftp.login(self.login, self.password)
         return ftp
 
@@ -142,11 +154,12 @@ class BugsApi:
         return json.loads(response.text)
 
     # this save file on ftp
-    def SaveOnline(self, filename, path='./', ftp_subpath=""):
+    def SaveOnline(self, filename, direction=""):
         session = self.GetFtpSession()
+        session.cwd(self.ftp_subpath)
         try:
-            file = open("{}{}".format(path,filename), 'rb')  # file to send
-            response = session.storbinary('STOR {}{}'.format(ftp_subpath+"/", filename), file)  # send the file
+            file = open(os.path.join(direction,filename), 'rb')  # file to send
+            response = session.storbinary('STOR {}'.format(filename), file)  # send the file
             file.close()  # close file and FTP
             session.quit()
             return True
@@ -154,9 +167,9 @@ class BugsApi:
             return False
 
     # return list of file on ftp
-    def GetFtpMeshList(self, ftp_subpath=""):
+    def GetFtpMeshList(self):
         session = self.GetFtpSession()
-        session.cwd(ftp_subpath)
+        session.cwd(self.ftp_subpath)
         files = []
         try:
             files = session.nlst()
@@ -166,24 +179,32 @@ class BugsApi:
         files.sort()
         return files
 
-        # this method download mesh from online ftp
-        def DownloadMesh(self, filename, ftp_subpath=""):
-            session = self.GetFtpSession()
-            session.cwd(ftp_subpath)
-            directory = "./bugsmesh"
-            file = os.path.join(directory, "bugs.blend")
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-            if os.path.isfile(file):
-                os.remove(file)
+    # this method download mesh from online ftp
+    def DownloadMesh(self, filename):
+        session = self.GetFtpSession()
+        session.cwd(self.ftp_subpath)
+        directory = os.path.join(tempfile.gettempdir(), "bugsmesh")
+        filename_split, file_extension = os.path.splitext(filename)
 
-            try:
-                session.retrbinary('RETR %s' % filename, open(file, "wb").write)
-                session.close
-                return True
-            except:
-                session.close
-                return False
+        if file_extension == ".blend":
+            file = os.path.join(directory, "bugs.blend")
+        elif file_extension == ".obj":
+            file = os.path.join(directory, "bugs.obj")
+        else:
+            return False
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        if os.path.isfile(file):
+            os.remove(file)
+
+        try:
+            session.retrbinary('RETR %s' % filename, open(file, "wb").write)
+            session.close
+            return file
+        except:
+            session.close
+            return False
 
 
 class View3DPanel():
@@ -195,36 +216,25 @@ class View3DPanel():
 # ----------------------------------------------------
 
 
-# plugin prefs
-
-now = datetime.now()
-for date in dates:
-    ob_date = datetime.strptime(date, "%d %m %Y")
-    if ob_date > now:
-        newItem = bpy.context.scene.bugsCalendarLists.add()
-        newItem.day = date
-
-
 # this operator load calendar valide date
 class LoadCalendarOperator(Operator):
-    bl_idname = "wm.load_calendar"
+    bl_idname = "bugs.load_calendar"
     bl_label = ""
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
         if len(context.scene.bugsCalendarLists) == 0:
             prefs = bpy.context.user_preferences.addons[__name__].preferences
-            api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_port)
+            api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_subpath, prefs.ftp_port)
             dates = api.GetCalendar()
             now = datetime.now()
             for date in dates:
                 ob_date = datetime.strptime(date, "%d %m %Y")
                 if ob_date > now:
-                    newItem = context.scene.bugsCalendarLists.add()
+                    newItem = bpy.context.scene.bugsCalendarLists.add()
                     newItem.day = ob_date.strftime('Samedi %d %B %Y')
 
         return {'FINISHED'}
-
-bpy.ops.wm.load_calendar()
 
 
 # Class for the panel inherit Panel
@@ -237,6 +247,7 @@ class BugsPanelCalendar(View3DPanel, Panel):
     # Add UI Elements
     def draw(self, context):
         layout = self.layout
+
         # Section Calendar management view
         layout.label(text='Prochaine date')
         box = layout.box()
@@ -247,7 +258,8 @@ class BugsPanelCalendar(View3DPanel, Panel):
                 first = False
             else:
                 box.label(date.day, icon='SORTTIME')
-
+        row = box.row()
+        row.operator("bugs.load_calendar", text="Afficher les dates", icon="FILE_REFRESH")
 # ----------------------------------------------------
 # Mesh Panel
 # ----------------------------------------------------
@@ -261,13 +273,17 @@ class RefreshOnlineMeshOperator(Operator):
     mesh_name = bpy.props.StringProperty()  # defining the property
 
     def execute(self, context):
+        context.scene.bugsMeshLists.clear()
         # plugin prefs
         prefs = context.user_preferences.addons[__name__].preferences
 
         # Section FTP management view
-        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_port)
+        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_subpath, prefs.ftp_port)
 
-        context['bugs_online_mesh'] = api.GetFtpMeshList("mesh")
+        files = api.GetFtpMeshList()
+        for mesh in files:
+            newItem = context.scene.bugsMeshLists.add()
+            newItem.name = mesh
 
         return {'FINISHED'}
 
@@ -280,8 +296,16 @@ class GetOnlineMeshOperator(Operator):
 
     def execute(self, context):
         prefs = context.user_preferences.addons[__name__].preferences
-        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_port)
-        mesh = api.DownloadMesh(self.mesh_name, "mesh")
+        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_subpath, prefs.ftp_port)
+        filepath = api.DownloadMesh(self.mesh_name)
+        if filepath:
+            filename, file_extension = os.path.splitext(filepath)
+            if file_extension == ".blend":
+                bpy.ops.wm.open_mainfile(filepath=filepath)
+            elif file_extension == ".obj":
+                bpy.ops.import_scene.obj(filepath=filepath)
+
+
         return {'FINISHED'}
 
 
@@ -295,17 +319,16 @@ class BugsPanelMesh(View3DPanel, Panel):
     # Add UI Elements
     def draw(self, context):
         layout = self.layout
-        files = []
-        if context.bugs_online_mesh:
-            files = context.bugs_online_mesh
-
         # Section FTP management view
         box = layout.box()
         col = box.column()
         # add mesh operator
-        for mesh in files:
-            op = col.operator("bugs.get_online_mesh", text=mesh, icon="OUTLINER_OB_GROUP_INSTANCE")
-            op.mesh_name = mesh
+        for mesh in context.scene.bugsMeshLists:
+            op = col.operator("bugs.get_online_mesh", text=mesh.name, icon="OUTLINER_OB_GROUP_INSTANCE")
+            op.mesh_name = mesh.name
+
+        row = box.row()
+        row.operator("bugs.refresh_online_mesh", text="Mettre à jour", icon="FILE_REFRESH")
 
 
 # Register
