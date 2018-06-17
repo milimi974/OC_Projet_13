@@ -26,5 +26,25 @@ class TestAPI(object):
 
     # test connection ftp
     def test_connection_ftp(self):
-        session = FTP(FTP_HOSTNAME, FTP_LOGIN , FTP_PASSWORD)
+        ba = BugsApi(JSON_URL,FTP_HOSTNAME, FTP_LOGIN , FTP_PASSWORD)
+        session = ba.GetFtpSession()
         assert session.retrlines('LIST') == '226 Transfer complete'
+
+    # test upload file to ftp
+    def test_upload_file_ftp(self):
+        ba = BugsApi(JSON_URL, FTP_HOSTNAME, FTP_LOGIN, FTP_PASSWORD)
+        localpath = os.path.join(PLUGIN_PATH, "test/file/")
+        response = ba.SaveOnline("mesh1.blend",path=localpath, ftp_subpath="mesh")
+        assert response == True
+        response = ba.SaveOnline("mesh2.blend", path=localpath, ftp_subpath="mesh")
+        assert response == True
+        response = ba.SaveOnline("mesh3.blend", path=localpath, ftp_subpath="mesh")
+        assert response == True
+        response = ba.SaveOnline("mesh4.blend", path=localpath, ftp_subpath="mesh")
+        assert response == True
+
+    # test list file on ftp
+    def test_list_file_ftp(self):
+        ba = BugsApi(JSON_URL, FTP_HOSTNAME, FTP_LOGIN, FTP_PASSWORD)
+        list = ba.GetFtpMeshList("mesh")
+        assert list == ["mesh1.blend","mesh2.blend","mesh3.blend","mesh4.blend"]
