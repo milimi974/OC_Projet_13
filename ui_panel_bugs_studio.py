@@ -7,7 +7,7 @@ bl_info = {
     'author': 'Yohan Solon',
     'license': 'GPL',
     'deps': '',
-    'version': (1, 2, 8),
+    'version': (1, 0, 0),
     'blender': (2, 7, 9),
     'location': 'BugsStudio',
     'warning': '',
@@ -18,17 +18,36 @@ bl_info = {
     }
 
 import bpy
-from bpy.types import Panel, AddonPreferences, UIList
+from bpy.types import Panel, AddonPreferences, UIList, Operator
 from bpy.props import (
     EnumProperty, PointerProperty,
     StringProperty, BoolProperty,
     IntProperty, FloatProperty, FloatVectorProperty
     )
 import requests
-import urllib
+import os
 from ftplib import FTP
 import json
 from datetime import datetime
+
+
+# ----------------------------------------------------
+# custom list manager
+# ----------------------------------------------------
+class BugsMeshGroup(bpy.types.PropertyGroup):
+    name = bpy.props.StringProperty()
+
+
+bpy.utils.register_class(BugsMeshGroup)
+bpy.types.Scene.bugsMeshLists = bpy.props.CollectionProperty(type=BugsMeshGroup)
+
+
+class BugsCalendarGroup(bpy.types.PropertyGroup):
+    name = bpy.props.StringProperty()
+
+
+bpy.utils.register_class(BugsCalendarGroup)
+bpy.types.Scene.bugsCalendarLists = bpy.props.CollectionProperty(type=BugsCalendarGroup)
 
 # ----------------------------------------------------
 # Addon preferences
@@ -147,9 +166,24 @@ class BugsApi:
         files.sort()
         return files
 
-    # this method download mesh from online ftp
-    def DownloadMesh(self, filename, subpath=""):
-        urllib.urlretrieve(self.ftp_host + subpath, filename)
+        # this method download mesh from online ftp
+        def DownloadMesh(self, filename, ftp_subpath=""):
+            session = self.GetFtpSession()
+            session.cwd(ftp_subpath)
+            directory = "./bugsmesh"
+            file = os.path.join(directory, "bugs.blend")
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            if os.path.isfile(file):
+                os.remove(file)
+
+            try:
+                session.retrbinary('RETR %s' % filename, open(file, "wb").write)
+                session.close
+                return True
+            except:
+                session.close
+                return False
 
 
 class View3DPanel():
@@ -161,73 +195,124 @@ class View3DPanel():
 # ----------------------------------------------------
 
 
+# plugin prefs
+
+now = datetime.now()
+for date in dates:
+    ob_date = datetime.strptime(date, "%d %m %Y")
+    if ob_date > now:
+        newItem = bpy.context.scene.bugsCalendarLists.add()
+        newItem.day = date
+
+
+# this operator load calendar valide date
+class LoadCalendarOperator(Operator):
+    bl_idname = "wm.load_calendar"
+    bl_label = ""
+
+    def execute(self, context):
+        if len(context.scene.bugsCalendarLists) == 0:
+            prefs = bpy.context.user_preferences.addons[__name__].preferences
+            api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_port)
+            dates = api.GetCalendar()
+            now = datetime.now()
+            for date in dates:
+                ob_date = datetime.strptime(date, "%d %m %Y")
+                if ob_date > now:
+                    newItem = context.scene.bugsCalendarLists.add()
+                    newItem.day = ob_date.strftime('Samedi %d %B %Y')
+
+        return {'FINISHED'}
+
+bpy.ops.wm.load_calendar()
+
+
 # Class for the panel inherit Panel
 class BugsPanelCalendar(View3DPanel, Panel):
     """ this are a custom panel viewport """
-    bl_label = 'Calendar'
+    bl_label = 'Calendrier'
     bl_context = 'objectmode'
     bl_category = 'Bugs Studio'
-
 
     # Add UI Elements
     def draw(self, context):
         layout = self.layout
-        # plugin prefs
-        prefs = context.user_preferences.addons[__name__].preferences
-
-        # Section FTP management view
-        box = layout.box()
-        box.label("FTP")
-        row = box.row()
-        col = row.column()
-        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_port)
-        dates = api.GetCalendar()
         # Section Calendar management view
         layout.label(text='Prochaine date')
         box = layout.box()
-        now = datetime.now()
         first = True
-        for date in dates:
-            ob_date = datetime.strptime(date, "%d %m %Y")
-            if ob_date > now:
-                if first:
-                    box.label(ob_date.strftime('Samedi %d %B %Y'), icon='COLOR_GREEN')
-                    first = False
-                else:
-                    box.label(ob_date.strftime('Samedi %d %B %Y'), icon='SORTTIME')
+        for date in context.scene.bugsCalendarLists:
+            if first:
+                box.label(date.day, icon='COLOR_GREEN')
+                first = False
+            else:
+                box.label(date.day, icon='SORTTIME')
 
 # ----------------------------------------------------
 # Mesh Panel
 # ----------------------------------------------------
 
 
+# manage upload mesh
+class RefreshOnlineMeshOperator(Operator):
+    bl_idname = "bugs.refresh_online_mesh"
+    bl_label = ""
+
+    mesh_name = bpy.props.StringProperty()  # defining the property
+
+    def execute(self, context):
+        # plugin prefs
+        prefs = context.user_preferences.addons[__name__].preferences
+
+        # Section FTP management view
+        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_port)
+
+        context['bugs_online_mesh'] = api.GetFtpMeshList("mesh")
+
+        return {'FINISHED'}
+
+# download mesh from ftp
+class GetOnlineMeshOperator(Operator):
+    bl_idname = "bugs.get_online_mesh"
+    bl_label = ""
+
+    mesh_name = bpy.props.StringProperty()  # defining the property
+
+    def execute(self, context):
+        prefs = context.user_preferences.addons[__name__].preferences
+        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_port)
+        mesh = api.DownloadMesh(self.mesh_name, "mesh")
+        return {'FINISHED'}
+
+
 # Class for the panel inherit Panel
 class BugsPanelMesh(View3DPanel, Panel):
     """ this are a custom panel viewport """
-    bl_label = 'Online Mesh'
+    bl_label = 'Mesh en ligne'
     bl_context = 'objectmode'
     bl_category = 'Bugs Studio'
 
     # Add UI Elements
     def draw(self, context):
         layout = self.layout
-        # plugin prefs
-        prefs = context.user_preferences.addons[__name__].preferences
+        files = []
+        if context.bugs_online_mesh:
+            files = context.bugs_online_mesh
 
         # Section FTP management view
         box = layout.box()
-        box.label("FTP")
-        row = box.row()
-        col = row.column()
-        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_port)
-
-        layout.label(text='Dates bugs')
-        layout.operator("mesh.primitive_cube_add", text="Cube")
-        layout.label(text='Mesh disponible')
+        col = box.column()
+        # add mesh operator
+        for mesh in files:
+            op = col.operator("bugs.get_online_mesh", text=mesh, icon="OUTLINER_OB_GROUP_INSTANCE")
+            op.mesh_name = mesh
 
 
 # Register
 def register():
+    bpy.utils.register_class(LoadCalendarOperator)
+    bpy.utils.register_class(RefreshOnlineMeshOperator)
+    bpy.utils.register_class(GetOnlineMeshOperator)
     bpy.utils.register_class(BugsPanelCalendar)
     bpy.utils.register_class(BugsPanelMesh)
     bpy.utils.register_class(Bugs_Pref)
@@ -235,6 +320,9 @@ def register():
 
 # Unregister
 def unregister():
+    bpy.utils.unregister_class(LoadCalendarOperator)
+    bpy.utils.unregister_class(RefreshOnlineMeshOperator)
+    bpy.utils.unregister_class(GetOnlineMeshOperator)
     bpy.utils.unregister_class(BugsPanelCalendar)
     bpy.utils.unregister_class(BugsPanelMesh)
     bpy.utils.unregister_class(Bugs_Pref)

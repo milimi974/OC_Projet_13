@@ -4,5 +4,5 @@ env
 test/settings.py
 __pycache__
 test/__pycache__
-test_panel.py
+code_test_panel.py
 test/settings.pyc

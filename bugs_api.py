@@ -42,8 +42,10 @@ class BugsApi:
     def SaveOnline(self, filename, path='./', ftp_subpath=""):
         session = self.GetFtpSession()
         try:
+
             file = open("{}{}".format(path,filename), 'rb')  # file to send
-            response = session.storbinary('STOR {}{}'.format(ftp_subpath+"/", filename), file)  # send the file
+            session.cwd(ftp_subpath)
+            response = session.storbinary('STOR {}'.format(filename), file)  # send the file
             file.close()  # close file and FTP
             session.quit()
             return True
@@ -64,6 +66,21 @@ class BugsApi:
         return files
 
     # this method download mesh from online ftp
-    def DownloadMesh(self, filename, subpath=""):
-        urllib.urlretrieve(self.ftp_host + subpath, filename)
+    def DownloadMesh(self, filename, ftp_subpath=""):
+        session = self.GetFtpSession()
+        session.cwd(ftp_subpath)
+        directory = "./bugsmesh"
+        file = os.path.join(directory, "bugs.blend")
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        if os.path.isfile(file):
+            os.remove(file)
+
+        try:
+            session.retrbinary('RETR %s' % filename, open(file, "wb").write)
+            session.close
+            return True
+        except:
+            session.close
+            return False
 
