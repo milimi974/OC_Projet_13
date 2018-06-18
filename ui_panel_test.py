@@ -30,7 +30,6 @@ from ftplib import FTP
 import json
 from datetime import datetime
 import tempfile
-import uuid
 
 # ----------------------------------------------------
 # custom list manager
@@ -51,7 +50,7 @@ class BugsCalendarGroup(bpy.types.PropertyGroup):
 
 bpy.utils.register_class(BugsCalendarGroup)
 bpy.types.Scene.bugsCalendarLists = bpy.props.CollectionProperty(type=BugsCalendarGroup)
-
+print(bpy.context.scene.name)
 # ----------------------------------------------------
 # Addon preferences
 # ----------------------------------------------------
@@ -291,7 +290,6 @@ class RefreshOnlineMeshOperator(Operator):
 
         return {'FINISHED'}
 
-
 # download mesh from ftp
 class GetOnlineMeshOperator(Operator):
     bl_idname = "bugs.get_online_mesh"
@@ -310,51 +308,6 @@ class GetOnlineMeshOperator(Operator):
             elif file_extension == ".obj":
                 bpy.ops.import_scene.obj(filepath=filepath)
 
-        return {'FINISHED'}
-
-
-# upload scene to ftp
-class UploadOnlineSceneOperator(Operator):
-    bl_idname = "bugs.upload_online_scene"
-    bl_label = ""
-
-    mesh_name = bpy.props.StringProperty()  # defining the property
-
-    def execute(self, context):
-        prefs = context.user_preferences.addons[__name__].preferences
-        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_subpath, prefs.ftp_port)
-
-        blend_file_path = bpy.data.filepath
-        filename, file_extension = os.path.splitext(blend_file_path)
-        if filename == "untitled":
-            filename = str(uuid.uuid4())
-        filename = filename + file_extension
-        directory = os.path.dirname(blend_file_path)
-        target_file = os.path.join(directory, filename)
-        bpy.ops.wm.save_as_mainfile(filepath=target_file)
-        api.SaveOnline(filename, directory)
-        return {'FINISHED'}
-
-
-# upload mesh to ftp
-class UploadOnlineMeshOperator(Operator):
-    bl_idname = "bugs.upload_online_mesh"
-    bl_label = ""
-
-    mesh_name = bpy.props.StringProperty()  # defining the property
-
-    def execute(self, context):
-        prefs = context.user_preferences.addons[__name__].preferences
-        api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_subpath, prefs.ftp_port)
-
-        # current file name
-        blend_file_path = bpy.data.filepath
-        filename, file_extension = os.path.splitext(blend_file_path)
-        filename = filename + '.obj'
-        directory = os.path.dirname(blend_file_path)
-        target_file = os.path.join(directory, filename)
-        bpy.ops.export_scene.obj(filepath=target_file)
-        api.SaveOnline(filename, directory)
 
         return {'FINISHED'}
 
@@ -373,7 +326,7 @@ class BugsPanelMesh(View3DPanel, Panel):
         box = layout.box()
         col = box.column()
         # add mesh operator
-        for mesh in context.scene.bugsMeshLists:
+        for mesh in context.scene.bugsMeshLists:            
             filename, file_extension = os.path.splitext(mesh)
             if file_extension == ".blend":
                 op = col.operator("bugs.get_online_mesh", text=mesh.name, icon="SCENE_DATA")
@@ -382,21 +335,19 @@ class BugsPanelMesh(View3DPanel, Panel):
             else:
                 op = col.operator("bugs.get_online_mesh", text=mesh.name, icon="OUTLINER_OB_GROUP_INSTANCE")
             op.mesh_name = mesh.name
-
+             
+        
         box = layout.box()
-        col = box.column(align=True)
+        col = box.column(align = True)
         col.separator()
-        row = col.row(align=True)
+        row = col.row(align = True)
         row.operator("bugs.upload_online_scene", text="Upload Scene", icon="SCENE_DATA")
         row.operator("bugs.upload_online_mesh", text="Upload Object", icon="OBJECT_DATAMODE")
         col.operator("bugs.refresh_online_mesh", text="Mettre à jour", icon="FILE_REFRESH")
 
-
 # Register
 def register():
     bpy.utils.register_class(LoadCalendarOperator)
-    bpy.utils.register_class(UploadOnlineMeshOperator)
-    bpy.utils.register_class(UploadOnlineSceneOperator)
     bpy.utils.register_class(RefreshOnlineMeshOperator)
     bpy.utils.register_class(GetOnlineMeshOperator)
     bpy.utils.register_class(BugsPanelCalendar)
@@ -407,8 +358,6 @@ def register():
 # Unregister
 def unregister():
     bpy.utils.unregister_class(LoadCalendarOperator)
-    bpy.utils.unregister_class(UploadOnlineMeshOperator)
-    bpy.utils.unregister_class(UploadOnlineSceneOperator)
     bpy.utils.unregister_class(RefreshOnlineMeshOperator)
     bpy.utils.unregister_class(GetOnlineMeshOperator)
     bpy.utils.unregister_class(BugsPanelCalendar)
