@@ -64,28 +64,24 @@ class Bugs_Pref(AddonPreferences):
         name="JSON Uri",
         description="Add json file url",
         default="http://www.mywebsite.fr/json.php",
-        # default="http://wp.yoso.fr/json.php",
     )
     # ftp server host
     ftp_hostname = StringProperty(
         name="FTP Hostname",
         description="Add FTP hostname",
-        # default="www.mywebsiteftp.fr",
-        default="ns532117.ip-198-245-49.net",
+        default="www.mywebsiteftp.fr",
     )
     # ftp server login
     ftp_login = StringProperty(
         name="FTP Login",
         description="Add FTP user login",
-        # default="My Login",
-        default="ftp_user.wp",
+        default="My Login",
     )
     # ftp server password
     ftp_password = StringProperty(
         name="FTP Password",
         description="Add FTP user password",
-        # default="**********",
-        default="01#userftp#01",
+        default="**********",
     )
     # ftp server subpath
     ftp_subpath = StringProperty(
@@ -158,11 +154,11 @@ class BugsApi:
         return json.loads(response.text)
 
     # this save file on ftp
-    def SaveOnline(self, filename, direction=""):
+    def SaveOnline(self, filename, directory=""):
         session = self.GetFtpSession()
         session.cwd(self.ftp_subpath)
         try:
-            file = open(os.path.join(direction, filename), 'rb')  # file to send
+            file = open(os.path.join(directory, filename), 'rb')  # file to send
             response = session.storbinary('STOR {}'.format(filename), file)  # send the file
             file.close()  # close file and FTP
             session.quit()
@@ -304,7 +300,8 @@ class GetOnlineMeshOperator(Operator):
         api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_subpath, prefs.ftp_port)
         filepath = api.DownloadMesh(self.mesh_name)
         if filepath:
-            filename, file_extension = os.path.splitext(filepath)
+            filename_w_ext = os.path.basename(filepath)
+            filename, file_extension = os.path.splitext(filename_w_ext)
             if file_extension == ".blend":
                 bpy.ops.wm.open_mainfile(filepath=filepath)
             elif file_extension == ".obj":
@@ -324,15 +321,29 @@ class UploadOnlineSceneOperator(Operator):
         prefs = context.user_preferences.addons[__name__].preferences
         api = BugsApi(prefs.json_url, prefs.ftp_hostname, prefs.ftp_login, prefs.ftp_password, prefs.ftp_subpath, prefs.ftp_port)
 
+        # get current path + filename of scene
         blend_file_path = bpy.data.filepath
-        filename, file_extension = os.path.splitext(blend_file_path)
-        if filename == "untitled":
-            filename = str(uuid.uuid4())
-        filename = filename + file_extension
+        # extract filename and extension
+        filename_w_ext = os.path.basename(blend_file_path)
+        filename, file_extension = os.path.splitext(filename_w_ext)
+        # check if scene already save not error
+        if not filename:
+            self.report({'ERROR'}, "Veuillez sauvegarder votre projet.")
+            return {'FINISHED'}
+        # check if file name already exist not error
+        for mesh in context.scene.bugsMeshLists:
+            if mesh.name == filename_w_ext:
+                self.report({'ERROR'},
+                            "Ce nom de fichier existe déjà {}, veuillez en choisir un autre.".format(filename_w_ext))
+                return {'FINISHED'}
+
         directory = os.path.dirname(blend_file_path)
-        target_file = os.path.join(directory, filename)
-        bpy.ops.wm.save_as_mainfile(filepath=target_file)
-        api.SaveOnline(filename, directory)
+        # upload file
+        if api.SaveOnline(filename_w_ext, directory=directory):
+            self.report({'INFO'}, "La scene a été mise en ligne , vous pouvez mettre à jour la liste.")
+        else:
+            self.report({'ERROR'}, "Impossible de mettre {} en ligne, veuillez réessayer.".format(filename_w_ext))
+
         return {'FINISHED'}
 
 
@@ -349,10 +360,28 @@ class UploadOnlineMeshOperator(Operator):
 
         # current file name
         blend_file_path = bpy.data.filepath
-        filename, file_extension = os.path.splitext(blend_file_path)
+        # extract filename and extension
+        filename_w_ext = os.path.basename(blend_file_path)
+        filename, file_extension = os.path.splitext(filename_w_ext)
+        # check if scene already save not error
+        if not filename:
+            self.report({'ERROR'}, "Veuillez sauvegarder votre projet.")
+            return {'FINISHED'}
+        # rename file with obj extension
         filename = filename + '.obj'
+        # check if file name already exist not error
+        for mesh in context.scene.bugsMeshLists:
+            if mesh.name == filename:
+                self.report({'ERROR'},
+                            "Ce nom de fichier existe déjà {}, veuillez en choisir un autre.".format(filename_w_ext))
+                return {'FINISHED'}
+
+        # if path object doesn't exist save to temp
         directory = os.path.dirname(blend_file_path)
+        if not directory:
+            directory = tempfile.gettempdir()
         target_file = os.path.join(directory, filename)
+
         bpy.ops.export_scene.obj(filepath=target_file)
         api.SaveOnline(filename, directory)
 
@@ -374,7 +403,7 @@ class BugsPanelMesh(View3DPanel, Panel):
         col = box.column()
         # add mesh operator
         for mesh in context.scene.bugsMeshLists:
-            filename, file_extension = os.path.splitext(mesh)
+            filename, file_extension = os.path.splitext(mesh.name)
             if file_extension == ".blend":
                 op = col.operator("bugs.get_online_mesh", text=mesh.name, icon="SCENE_DATA")
             elif file_extension == ".obj":
