@@ -450,7 +450,6 @@ class BugsPanelMesh(View3DPanel, Panel):
 
 # Register
 def register():
-    bpy.utils.register_module(__name__)
     bpy.utils.register_class(LoadCalendarOperator)
     bpy.utils.register_class(UploadOnlineMeshOperator)
     bpy.utils.register_class(UploadOnlineSceneOperator)
@@ -463,7 +462,6 @@ def register():
 
 # Unregister
 def unregister():
-    bpy.utils.unregister_module(__name__)
     bpy.utils.unregister_class(LoadCalendarOperator)
     bpy.utils.unregister_class(UploadOnlineMeshOperator)
     bpy.utils.unregister_class(UploadOnlineSceneOperator)
