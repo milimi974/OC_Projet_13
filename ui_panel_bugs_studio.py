@@ -30,7 +30,7 @@ from ftplib import FTP
 import json
 from datetime import datetime
 import tempfile
-import uuid
+import bpy.utils.previews
 
 # ----------------------------------------------------
 # custom list manager
@@ -82,6 +82,7 @@ class Bugs_Pref(AddonPreferences):
         name="FTP Password",
         description="Add FTP user password",
         default="**********",
+        subtype='PASSWORD'
     )
     # ftp server subpath
     ftp_subpath = StringProperty(
@@ -247,7 +248,6 @@ class BugsPanelCalendar(View3DPanel, Panel):
     # Add UI Elements
     def draw(self, context):
         layout = self.layout
-
         # Section Calendar management view
         layout.label(text='Prochaine date')
         box = layout.box()
@@ -330,6 +330,14 @@ class UploadOnlineSceneOperator(Operator):
         if not filename:
             self.report({'ERROR'}, "Veuillez sauvegarder votre projet.")
             return {'FINISHED'}
+
+        # update mesh list
+        context.scene.bugsMeshLists.clear()
+        files = api.GetFtpMeshList()
+        for mesh in files:
+            newItem = context.scene.bugsMeshLists.add()
+            newItem.name = mesh
+
         # check if file name already exist not error
         for mesh in context.scene.bugsMeshLists:
             if mesh.name == filename_w_ext:
@@ -341,6 +349,11 @@ class UploadOnlineSceneOperator(Operator):
         # upload file
         if api.SaveOnline(filename_w_ext, directory=directory):
             self.report({'INFO'}, "La scene a été mise en ligne , vous pouvez mettre à jour la liste.")
+            context.scene.bugsMeshLists.clear()
+            files = api.GetFtpMeshList()
+            for mesh in files:
+                newItem = context.scene.bugsMeshLists.add()
+                newItem.name = mesh
         else:
             self.report({'ERROR'}, "Impossible de mettre {} en ligne, veuillez réessayer.".format(filename_w_ext))
 
@@ -369,6 +382,14 @@ class UploadOnlineMeshOperator(Operator):
             return {'FINISHED'}
         # rename file with obj extension
         filename = filename + '.obj'
+
+        # update mesh list
+        context.scene.bugsMeshLists.clear()
+        files = api.GetFtpMeshList()
+        for mesh in files:
+            newItem = context.scene.bugsMeshLists.add()
+            newItem.name = mesh
+
         # check if file name already exist not error
         for mesh in context.scene.bugsMeshLists:
             if mesh.name == filename:
@@ -382,8 +403,13 @@ class UploadOnlineMeshOperator(Operator):
             directory = tempfile.gettempdir()
         target_file = os.path.join(directory, filename)
 
-        bpy.ops.export_scene.obj(filepath=target_file)
+        bpy.ops.export_scene.obj(filepath=target_file, use_selection=True)
         api.SaveOnline(filename, directory)
+        context.scene.bugsMeshLists.clear()
+        files = api.GetFtpMeshList()
+        for mesh in files:
+            newItem = context.scene.bugsMeshLists.add()
+            newItem.name = mesh
 
         return {'FINISHED'}
 
@@ -391,7 +417,7 @@ class UploadOnlineMeshOperator(Operator):
 # Class for the panel inherit Panel
 class BugsPanelMesh(View3DPanel, Panel):
     """ this are a custom panel viewport """
-    bl_label = 'Mesh en ligne'
+    bl_label = 'Projets et objets en ligne'
     bl_context = 'objectmode'
     bl_category = 'Bugs Studio'
 
@@ -400,6 +426,7 @@ class BugsPanelMesh(View3DPanel, Panel):
         layout = self.layout
         # Section FTP management view
         box = layout.box()
+
         col = box.column()
         # add mesh operator
         for mesh in context.scene.bugsMeshLists:
@@ -416,13 +443,14 @@ class BugsPanelMesh(View3DPanel, Panel):
         col = box.column(align=True)
         col.separator()
         row = col.row(align=True)
-        row.operator("bugs.upload_online_scene", text="Upload Scene", icon="SCENE_DATA")
+        row.operator("bugs.upload_online_scene", text="Upload Projet", icon="SCENE_DATA")
         row.operator("bugs.upload_online_mesh", text="Upload Object", icon="OBJECT_DATAMODE")
         col.operator("bugs.refresh_online_mesh", text="Mettre à jour", icon="FILE_REFRESH")
 
 
 # Register
 def register():
+    bpy.utils.register_module(__name__)
     bpy.utils.register_class(LoadCalendarOperator)
     bpy.utils.register_class(UploadOnlineMeshOperator)
     bpy.utils.register_class(UploadOnlineSceneOperator)
@@ -435,6 +463,7 @@ def register():
 
 # Unregister
 def unregister():
+    bpy.utils.unregister_module(__name__)
     bpy.utils.unregister_class(LoadCalendarOperator)
     bpy.utils.unregister_class(UploadOnlineMeshOperator)
     bpy.utils.unregister_class(UploadOnlineSceneOperator)
