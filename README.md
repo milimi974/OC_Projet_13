@@ -1,7 +1,7 @@
 # OC_Projet_13
 
-Les livrables du projets se trouvent dans le dossier Documents. 
-Les test unitaires sont réalisés sur le module bugs_api.  
+Les livrables du projets se trouvent dans le dossier Documents.   
+Les test unitaires sont réalisés sur le module bugs_api.   
 L'addons finalisé est le module ui_panel_bugs_studio.py.
 
 ### Installation 
