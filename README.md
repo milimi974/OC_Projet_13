@@ -15,14 +15,15 @@ L'addons finalisé est le module ui_panel_bugs_studio.py.
 7. Save User Settings 
 
 ### Description
-L’add-on permet de mettre en ligne des fichiers *.blend et *.obj sur un 
-serveur par le biais d’une connexion FTP.
-Les fichiers peuvent être récupérés par les personnes ayant un accès au service.
-Le fichier ***.blend** remplacera la scène sur laquelle vous travaillez.
-**Penser à sauvegarder avant toute manipulation.**  
-Le fichier ***.obj** insert dans la scène courante l’objet téléchargé.
-Un autre fonctionnalité permet d’afficher les dates des réunions, en récupérant un fichier *.json depuis le serveur.
-Le format du fichier devra être $var = {index(int): value(string), ...}  
+L’add-on permet de mettre en ligne des fichiers *.blend et *.obj sur un   
+serveur par le biais d’une connexion FTP.  
+Les fichiers peuvent être récupérés par les personnes ayant un accès au service.   
+Le fichier ***.blend** remplacera la scène sur laquelle vous travaillez.   
+**Penser à sauvegarder avant toute manipulation.**   
+Le fichier ***.obj** insert dans la scène courante l’objet téléchargé.   
+Un autre fonctionnalité permet d’afficher les dates des réunions,   
+en récupérant un fichier *.json depuis le serveur.   
+Le format du fichier devra être $var = {index(int): value(string), ...}    
 et dont la value est une chaine de caractère correspondant à une date sous format EN.
 Exp. Date : 
 "%d %m %Y"
